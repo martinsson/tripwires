@@ -55,8 +55,9 @@ jobs:
 
 This repo is private, so it must allow access from the owner's other
 repositories: *Settings → Actions → General → Access → "Accessible from
-repositories owned by the user"* (set once, via the API, when the repo was
-created).
+repositories owned by the user"*. That setting covers both the reusable
+workflow and the composite action (`action.yml`) it runs, so the caller needs
+no token of its own.
 
 Mail: `EMAIL_USER` / `EMAIL_PASSWORD` in the caller's secrets, optional
 `ALERT_EMAIL_TO` (default martinsson.rouveyrol@gmail.com), `EMAIL_SMTP_HOST`,

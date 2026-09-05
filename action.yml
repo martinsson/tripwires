@@ -1,0 +1,24 @@
+name: Tripwires
+description: Absolute structural limits a healthy codebase never reaches. Red when one is crossed.
+inputs:
+  email-to:
+    description: Recipient of the report when a tripwire is crossed (mail needs EMAIL_USER / EMAIL_PASSWORD in env)
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -uo pipefail
+        args=""
+        if [ -n "${{ inputs.email-to }}" ] && [ -n "${EMAIL_USER:-}" ] && [ -n "${EMAIL_PASSWORD:-}" ]; then
+          args="--email-to ${{ inputs.email-to }}"
+        else
+          echo "::notice::No e-mail configured (email-to / EMAIL_USER / EMAIL_PASSWORD); the failed run is the alert."
+        fi
+        python3 "${{ github.action_path }}/tripwires.py" . --repo-name "${{ github.repository }}" $args | tee report.txt
+        status=${PIPESTATUS[0]}
+        { echo '### Tripwires'; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        rm -f report.txt
+        exit "$status"

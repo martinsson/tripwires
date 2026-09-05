@@ -10,28 +10,19 @@ name: Tripwires
 #   jobs:
 #     tripwires:
 #       uses: martinsson/tripwires/.github/workflows/check.yml@main
-#       secrets: inherit
 #
-# The caller checks out ITS OWN tree (the calling repository); the script then
-# runs from this repository's composite action (action.yml), which the runner
-# fetches under this repo's "accessible from the owner's repositories" setting
-# — no token is needed in the caller. Nothing about the thresholds lives there.
+# The caller checks out ITS OWN tree; the script then runs from this
+# repository's composite action (action.yml). Nothing about the thresholds
+# lives in the caller.
 #
 # Only ever wire this to the default branch and a schedule — never to
 # pull_request. A check nobody has to turn green is a check nobody games.
 #
-# Mail needs EMAIL_USER / EMAIL_PASSWORD in the caller's secrets (and
-# optionally ALERT_EMAIL_TO, EMAIL_SMTP_HOST, EMAIL_SMTP_PORT). Without them the
-# failed run is the alert.
+# The failed run is the alert: GitHub mails the owner about a failed workflow
+# on the default branch already, so nothing here sends mail.
 
 on:
   workflow_call:
-    inputs:
-      email-to:
-        description: "Recipient of the report when a tripwire is crossed"
-        type: string
-        required: false
-        default: "martinsson.rouveyrol@gmail.com"
 
 jobs:
   tripwires:
@@ -45,10 +36,3 @@ jobs:
           python-version: "3.12"
 
       - uses: martinsson/tripwires@main
-        with:
-          email-to: ${{ secrets.ALERT_EMAIL_TO || inputs.email-to }}
-        env:
-          EMAIL_USER: ${{ secrets.EMAIL_USER }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          EMAIL_SMTP_HOST: ${{ secrets.EMAIL_SMTP_HOST }}
-          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}

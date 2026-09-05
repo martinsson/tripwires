@@ -11,25 +11,22 @@ It runs only on the default branch, after a merge and on a schedule, never on a
 pull request: a check nobody has to turn green is a check nobody learns to
 route around.
 
-Usage:  python3 tripwires.py <repo-root> [--email-to ADDR]
+Usage:  python3 tripwires.py <repo-root>
         exit 1 if any tripwire is crossed; a file that does not parse is red,
-        never skipped.
+        never skipped. The failed CI run is the alert — GitHub already mails
+        the owner about it, so there is no mailer here.
 
-Dependency-free. Python sources only. E-mail needs EMAIL_USER / EMAIL_PASSWORD
-(EMAIL_SMTP_HOST / EMAIL_SMTP_PORT optional, Gmail by default).
+Dependency-free. Python sources only.
 """
 
 from __future__ import annotations
 
 import argparse
 import ast
-import os
 import re
-import smtplib
 import sys
 from collections import Counter
 from dataclasses import dataclass
-from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Iterator
 
@@ -194,39 +191,14 @@ def report(crossings: list[Crossing]) -> str:
     return "\n".join(lines)
 
 
-def _env(key: str) -> str:
-    value = os.environ.get(key)
-    if not value:
-        raise SystemExit(f"tripwires: {key} is not set")
-    return value
-
-
-def send_email(to_addr: str, subject: str, body: str) -> None:
-    user, password = _env("EMAIL_USER"), _env("EMAIL_PASSWORD")
-    host = os.environ.get("EMAIL_SMTP_HOST") or "smtp.gmail.com"
-    port = int(os.environ.get("EMAIL_SMTP_PORT") or 587)
-    msg = MIMEText(body, "plain", "utf-8")
-    msg["From"], msg["To"], msg["Subject"] = user, to_addr, subject
-    with smtplib.SMTP(host, port) as smtp:
-        smtp.starttls()
-        smtp.login(user, password)
-        smtp.sendmail(user, to_addr, msg.as_string())
-
 
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Absolute structural limits a healthy codebase never reaches.")
     ap.add_argument("root", type=Path)
-    ap.add_argument("--email-to", default=None, help="mail the report when something is crossed")
-    ap.add_argument("--repo-name", default=None, help="for the mail subject")
     a = ap.parse_args(argv)
 
     crossings = check(a.root.resolve())
-    text = report(crossings)
-    print(text)
-    if crossings and a.email_to:
-        name = a.repo_name or a.root.resolve().name
-        send_email(a.email_to, f"[tripwire] {name}: {len(crossings)} crossed", text)
-        print(f"report mailed to {a.email_to}")
+    print(report(crossings))
     return 1 if crossings else 0
 
 

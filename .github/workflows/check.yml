@@ -1,0 +1,72 @@
+name: Tripwires
+
+# Reusable workflow. A calling repository's workflow does:
+#
+#   on:
+#     push:
+#       branches: [main]
+#     schedule:
+#       - cron: "0 6 * * 1"
+#   jobs:
+#     tripwires:
+#       uses: martinsson/tripwires/.github/workflows/check.yml@main
+#       secrets: inherit
+#
+# The caller checks out ITS OWN tree (the calling repository), then this
+# repository is checked out into ./.tripwires and the script runs against the
+# caller's root. Nothing about the thresholds lives in the caller.
+#
+# Only ever wire this to the default branch and a schedule — never to
+# pull_request. A check nobody has to turn green is a check nobody games.
+#
+# Mail needs EMAIL_USER / EMAIL_PASSWORD in the caller's secrets (and
+# optionally ALERT_EMAIL_TO, EMAIL_SMTP_HOST, EMAIL_SMTP_PORT). Without them the
+# failed run is the alert.
+
+on:
+  workflow_call:
+    inputs:
+      email-to:
+        description: "Recipient of the report when a tripwire is crossed"
+        type: string
+        required: false
+        default: "martinsson.rouveyrol@gmail.com"
+
+jobs:
+  tripwires:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: martinsson/tripwires
+          ref: main
+          path: .tripwires
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Tripwires
+        env:
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO || inputs.email-to }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_SMTP_HOST: ${{ secrets.EMAIL_SMTP_HOST }}
+          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
+        run: |
+          set -uo pipefail
+          args=""
+          if [ -n "${EMAIL_USER:-}" ] && [ -n "${EMAIL_PASSWORD:-}" ]; then
+            args="--email-to $ALERT_EMAIL_TO"
+          else
+            echo "::notice::No e-mail configured (EMAIL_USER / EMAIL_PASSWORD); the failed run is the alert."
+          fi
+          # The checked-out copy of this repo must not be measured as part of the caller.
+          mv .tripwires /tmp/tripwires
+          python3 /tmp/tripwires/tripwires.py . --repo-name "${{ github.repository }}" $args | tee report.txt
+          status=${PIPESTATUS[0]}
+          { echo '### Tripwires'; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
